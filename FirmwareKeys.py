@@ -157,15 +157,16 @@ def parsekeys(url):
                     keydict[arr[0]] = key()
                     keydict[arr[0]].kbag = code
                 
-    return [keydict, soup.find(id='keypage-version'), soup.find(id='keypage-device')]
+    return [keydict, soup.find(id='keypage-build'), soup.find(id='keypage-device'), url]
 def mthread(link):
     parsed = parsekeys(link.href)
     v = parsed[1].string
-    d = parsed[2].string
+    d = parsed[2].a.string
     coll = keycoll(parsed[0])
     coll.version = v
     coll.device = d
-    return [v, coll, d]
+    coll.link = parsed[3]
+    return [coll]
 
 def getkeys(links, threads):
     from multiprocessing import Pool
@@ -179,35 +180,35 @@ def getkeys(links, threads):
         
         toadd = p.map(mthread, dsite)
         for c in toadd:
-            keys.append(c[1])
+            keys.append(c[0])
         
         dsite.keys = keys
         diff = (datetime.now() - old).total_seconds()
-        print("took " + str(diff) + " seconds")
         k = dsite[0].href
         if "Heavenly" in k:
-            print("ios 1")
+            print("ios 1", end=' ')
         elif "Big_Bear" in k:
-            print("ios 2")
+            print("ios 2", end=' ')
         elif "Wildcat" in k:
-            print("ios 3")
+            print("ios 3", end=' ')
         elif "Mojave" in k:
-            print("ios 4")
+            print("ios 4", end=' ')
         elif "Hoodoo" in k:
-            print("ios 5")
+            print("ios 5", end=' ')
         elif "Innsbruck" in k:
-            print("ios 6")
+            print("ios 6", end=' ')
         elif "Okemo_12A365b" in k:
-            print("ios 7")
+            print("ios 7", end=' ')
         elif "Okemo_12A365" in k:
-            print("ios 8")
+            print("ios 8", end=' ')
         elif "Monarch" in k:
-            print("ios 9")
+            print("ios 9", end=' ')
         elif "Whitetail" in k:
-            print("ios 10")
+            print("ios 10", end=' ')
         else:
             print("ios 11")
-        print(str(len(dsite.keys)) + " keys")
+        print("took " + str(diff) + " seconds")
+        print("Got " + str(len(dsite.keys)) + " keys")
     print("Finished!")
     try:
         datab = db(links)
@@ -229,30 +230,47 @@ def loadkeys():
 keys = []
 
 if __name__ == '__main__':
-    def start():
-        threads = 20
-        keys = downloadparse(threads)
+    def start(dlorparse):
+        threads = 70
+        keys = CList()
+        if dlorparse == "dl":
+            print("Downloading keys")
+            keys = downloadparse(threads)
+        else:
+            print("Loading keys")
+            keys = loadparse(threads)
         dic = CDict()
-        index = 0
         for k in keys:
             if (k != None):
-                index = index + 1
-                i = str(index)
-                dic[index] = CDict()
-                print("index " + i)
-                idex = 0
                 for b in k.keys:
                     if (b != None and b.device != None and b.version != None):
-                        tag = b.device + " " + b.version
-                        dic[index][tag] = keycoll(b.keys)
-        count = 0
-        for k in dic:
-            if (k != None):
-                count = count + len(dic[k])
+                        regex = re.search('([A-z0-9]*,[0-9])', b.link)
+                        ##\(([A-z0-9,]*)\)
+                        ## ([A-z0-9]*,[0-9]) Improved regex?
+                        v = ""
+                        if (regex != None):
+                            v = regex.group(0)
+                        else:
+                            if (b.device == "iPhone"):
+                                v = "iPhone1,1"
+                            elif (b.device == "iPod touch"):
+                                v = "iPod1,1"
+                            elif (b.device == "iPad"):
+                                v = "iPad1,1"
+                            else:
+                                print(b.link)
+                                v = "Unknown device"
+                        tag = v + " " + b.version
+                        
+                        dic[tag] = keycoll(b.keys)
+        count = len(dic)
+        print("Grabbed a total of " + str(count) + " keys!")
         stringdata = dic.toJSON()
         
         with open('keys.json', 'w') as fp:
             fp.write(stringdata)
+        print("JSON formatted list of keys are stored in keys.json")
+        return dic
     def lload():
         s = ""
         with open('keys.json', 'r') as fp:
